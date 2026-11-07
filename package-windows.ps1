@@ -22,7 +22,7 @@
 param(
     [ValidateSet("app-image", "msi", "exe")]
     [string]$Type = "app-image",
-    [string]$AppVersion = "1.0.2"
+    [string]$AppVersion = "1.0.3"
 )
 
 $ErrorActionPreference = "Stop"

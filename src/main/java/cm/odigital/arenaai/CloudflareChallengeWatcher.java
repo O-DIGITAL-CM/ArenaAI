@@ -6,16 +6,16 @@ import javafx.scene.web.WebEngine;
 import javafx.util.Duration;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
 /**
  * Detects Cloudflare verification and block pages in the embedded browser.
  *
- * <p>This does not interact with, solve, or bypass a challenge. It only looks
- * for Cloudflare challenge markers after a document loads so the app can tell
- * the user why the embedded page may be stuck and offer the system browser as
- * a fallback.</p>
+ * <p>This does not interact with, solve, or bypass a challenge. It watches for
+ * Cloudflare challenge URLs and document markers so the app can explain why the
+ * embedded page may be stuck and offer the system browser as a fallback.</p>
  */
 public final class CloudflareChallengeWatcher {
 
@@ -26,7 +26,7 @@ public final class CloudflareChallengeWatcher {
                 var title = String(document.title || '').toLowerCase();
                 var body = document.body ? String(document.body.innerText || '').toLowerCase() : '';
                 var challengeUrl = href.indexOf('/cdn-cgi/challenge-platform/') >= 0
-                  || href.indexOf('__cf_chl_tk=') >= 0;
+                  || href.indexOf('__cf_chl_') >= 0;
                 var challengeWidget = document.querySelector(
                   'iframe[src*="challenges.cloudflare.com"], .cf-turnstile, '
                   + 'input[name="cf-turnstile-response"], #challenge-form, #challenge-stage, '
@@ -57,40 +57,55 @@ public final class CloudflareChallengeWatcher {
     }
 
     /**
-     * Watches successful navigations and checks again after JavaScript has had
-     * time to render challenge widgets. A given URL is reported only once.
+     * Watches navigation URLs so transient Cloudflare challenge redirects are
+     * caught immediately, then checks successful pages after JavaScript has had
+     * time to render challenge widgets. A challenge is reported once per engine.
      *
      * @param engine WebEngine to inspect
      * @param onDetected called on the FX thread when a Cloudflare challenge is found
      */
     public static void watch(WebEngine engine, Consumer<String> onDetected) {
         Set<String> reportedUrls = new HashSet<>();
+        boolean[] challengeReported = {false};
+        String currentLocation = engine.getLocation();
+        if (isChallengeUrl(currentLocation)) {
+            challengeReported[0] = true;
+            reportedUrls.add(currentLocation);
+            onDetected.accept("Cloudflare challenge redirect detected in the embedded browser.");
+        }
+        engine.locationProperty().addListener((obs, oldLocation, newLocation) -> {
+            if (!challengeReported[0] && isChallengeUrl(newLocation)) {
+                challengeReported[0] = true;
+                reportedUrls.add(newLocation);
+                onDetected.accept("Cloudflare challenge redirect detected in the embedded browser.");
+            }
+        });
         engine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
             if (newState == Worker.State.SUCCEEDED) {
-                scheduleChecks(engine, reportedUrls, onDetected);
+                scheduleChecks(engine, reportedUrls, challengeReported, onDetected);
             }
         });
         if (engine.getLoadWorker().getState() == Worker.State.SUCCEEDED) {
-            scheduleChecks(engine, reportedUrls, onDetected);
+            scheduleChecks(engine, reportedUrls, challengeReported, onDetected);
         }
     }
 
     private static void scheduleChecks(WebEngine engine, Set<String> reportedUrls,
-                                      Consumer<String> onDetected) {
+                                      boolean[] challengeReported, Consumer<String> onDetected) {
         String location = engine.getLocation();
-        check(engine, reportedUrls, onDetected, location);
+        check(engine, reportedUrls, challengeReported, onDetected, location);
 
         PauseTransition firstSettle = new PauseTransition(Duration.seconds(2));
         firstSettle.setOnFinished(e -> {
             if (location == null || !location.equals(engine.getLocation())) {
                 return;
             }
-            check(engine, reportedUrls, onDetected, location);
+            check(engine, reportedUrls, challengeReported, onDetected, location);
 
             PauseTransition lateSettle = new PauseTransition(Duration.seconds(3));
             lateSettle.setOnFinished(late -> {
                 if (location.equals(engine.getLocation())) {
-                    check(engine, reportedUrls, onDetected, location);
+                    check(engine, reportedUrls, challengeReported, onDetected, location);
                 }
             });
             lateSettle.play();
@@ -99,15 +114,24 @@ public final class CloudflareChallengeWatcher {
     }
 
     private static void check(WebEngine engine, Set<String> reportedUrls,
-                              Consumer<String> onDetected, String location) {
-        if (location == null || location.isBlank() || reportedUrls.contains(location)) {
+                              boolean[] challengeReported, Consumer<String> onDetected, String location) {
+        if (challengeReported[0] || location == null || location.isBlank() || reportedUrls.contains(location)) {
             return;
         }
         String result = detect(engine);
         if (result != null) {
+            challengeReported[0] = true;
             reportedUrls.add(location);
             onDetected.accept(result);
         }
+    }
+
+    private static boolean isChallengeUrl(String location) {
+        if (location == null || location.isBlank()) {
+            return false;
+        }
+        String lower = location.toLowerCase(Locale.ROOT);
+        return lower.contains("/cdn-cgi/challenge-platform/") || lower.contains("__cf_chl_");
     }
 
     /**

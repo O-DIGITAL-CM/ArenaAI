@@ -44,6 +44,7 @@ the repo ships the `mvnw` wrapper).
 | `.../JsConsoleBridge.java` | Captures page JS console output + uncaught JS errors into the log |
 | `.../AuthPopupDialog.java` | In-app sign-in window for login popups (shares the app's cookies) |
 | `.../AuthErrorWatcher.java` | Scans loaded pages for known sign-in failure signatures |
+| `.../CloudflareChallengeWatcher.java` | Detects Cloudflare challenge redirects/pages and offers a system-browser fallback |
 | `src/main/resources/cm/odigital/arenaai/splash-view.fxml` | Splash layout (borderless card) |
 | `src/main/resources/cm/odigital/arenaai/browser-view.fxml` | Main window layout (toolbar + `WebView` container + error overlay) |
 | `.../css/splash.css`, `.../css/browser.css` | Discord-ish dark themes |
@@ -74,7 +75,7 @@ never gets stuck on the splash, even offline.
 
 # Real installers (require WiX Toolset v3 on PATH: https://wixtoolset.org)
 .\package-windows.ps1 -Type msi
-.\package-windows.ps1 -Type exe -AppVersion 1.0.2
+.\package-windows.ps1 -Type exe -AppVersion 1.0.3
 ```
 
 What the script does: `mvnw clean package` → `mvnw javafx:jlink`
@@ -108,12 +109,12 @@ attaches both files. Otherwise the build remains an Actions artifact only.
   assets. For a local build, run:
 
   ```powershell
-  .\package-windows.ps1 -Type exe -AppVersion 1.0.2
+  .\package-windows.ps1 -Type exe -AppVersion 1.0.3
   ```
 
-  Then create a published GitHub Release tagged `v1.0.2` and attach both
-  `target\dist\Arena-1.0.2.exe` and the generated
-  `target\dist\Arena-1.0.2.exe.sha256`. The tag and `-AppVersion` must match
+  Then create a published GitHub Release tagged `v1.0.3` and attach both
+  `target\dist\Arena-1.0.3.exe` and the generated
+  `target\dist\Arena-1.0.3.exe.sha256`. The tag and `-AppVersion` must match
   (`vX.Y.Z` / `X.Y.Z`); the updater expects those exact asset names. The release
   must be published (not a draft or prerelease) for the `/releases/latest` API
   endpoint to return it.
@@ -163,7 +164,8 @@ Replace the `.ico` file if you want a different installer icon.
 - What gets logged: app lifecycle, every navigation, page-load failures with
   stack traces, WebView engine errors, **page JavaScript console output and
   uncaught JS errors** (tagged `[JS …]`), popup decisions, sign-in window
-  events, uncaught exceptions.
+  events, uncaught exceptions. Transient Cloudflare `__cf_chl_` tokens are
+  removed from navigation logs and system-browser fallback URLs.
 - To diagnose the Google-login error: reproduce the sign-in, open **Logs**,
   and look for `[JS error]`, `Page load failed` and `Popup (sign-in)` lines —
   they show what the page itself reported.
@@ -199,12 +201,12 @@ Replace the `.ico` file if you want a different installer icon.
   keeps WebKit's real user agent instead of advertising an older Chrome version
   the embedded engine does not actually implement.
 - Cloudflare verification can appear inside the app but may not finish in the
-  embedded WebKit engine. The app detects common Cloudflare challenge pages and
-  offers to open that page in the system browser. Cookies are separate between
-  the app and the system browser, so verification completed in Chrome/Edge may
-  not carry back into the app; if the challenge keeps looping, continue using
-  Arena in the system browser for that session. The `↗` toolbar button remains
-  available to open any current page externally.
+  embedded WebKit engine. The app detects challenge pages and transient
+  `__cf_chl_` redirect URLs, then offers to open a clean site URL in the system
+  browser. It does not bypass or solve Cloudflare. Cookies are separate between
+  the app and system browser, so verification completed in Chrome/Edge will not
+  unlock the embedded WebView; continue using Arena in the system browser for
+  that session. The `↗` toolbar button also opens the current page externally.
 - If the page reports **SSL handshake failed**, the TLS connection stopped before
   Arena could return any page or Cloudflare challenge. The bundled runtime now
   explicitly includes the JDK EC/TLS provider. If it still happens, check the
@@ -216,7 +218,7 @@ Replace the `.ico` file if you want a different installer icon.
 - JavaScript `alert` / `confirm` / `prompt` are mapped to native dialogs.
 - Downloads: `WebView` has no download manager — file downloads triggered
   by the site may not work inside the app; use the system browser for those.
-- The Windows installer has been packaged by the GitHub Actions workflow on
-  JDK 21. That validates compilation and packaging, not a live TLS connection to
-  arena.ai; verify the handshake on the affected Windows network. For local
-  development, run `.\mvnw.cmd javafx:run` on a machine with JDK 21.
+- The Windows installer is built by the GitHub Actions workflow on JDK 21.
+  Successful packaging does not guarantee Cloudflare will accept the embedded
+  browser; verify the site in Chrome or Edge if the WebView challenge loops.
+  For local development, run `.\mvnw.cmd javafx:run` on a machine with JDK 21.

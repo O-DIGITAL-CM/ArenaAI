@@ -35,6 +35,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import javax.net.ssl.SSLHandshakeException;
@@ -96,7 +97,7 @@ public class BrowserController implements Initializable {
         retryButton.setOnAction(e -> {
             hideError();
             if (engine != null) {
-                AppLog.info("Retrying: " + engine.getLocation());
+                AppLog.info("Retrying: " + safeBrowserUrl(engine.getLocation()));
                 engine.reload();
             }
         });
@@ -112,7 +113,7 @@ public class BrowserController implements Initializable {
         this.engine = webView.getEngine();
         this.history = engine.getHistory();
 
-        AppLog.info("Main window attached to preloaded page: " + engine.getLocation());
+        AppLog.info("Main window attached to preloaded page: " + safeBrowserUrl(engine.getLocation()));
         JsConsoleBridge.install(engine);
         AuthErrorWatcher.watch(engine, this::onAuthErrorDetected);
         CloudflareChallengeWatcher.watch(engine,
@@ -121,8 +122,9 @@ public class BrowserController implements Initializable {
         // Index 0 keeps the error overlay (declared in FXML) on top.
         webContainer.getChildren().add(0, webView);
 
-        addressTooltip = new Tooltip(engine.getLocation());
-        addressTooltip.textProperty().bind(engine.locationProperty());
+        addressTooltip = new Tooltip(safeBrowserUrl(engine.getLocation()));
+        engine.locationProperty().addListener((obs, oldLocation, newLocation) ->
+                addressTooltip.setText(safeBrowserUrl(newLocation)));
         Tooltip.install(addressPill, addressTooltip);
         addressPill.setOnMouseClicked(e -> copyCurrentUrlToClipboard());
 
@@ -151,7 +153,7 @@ public class BrowserController implements Initializable {
         worker.stateProperty().addListener((obs, oldState, newState) -> reflectWorkerState(newState));
 
         engine.locationProperty().addListener((obs, oldLoc, newLoc) -> {
-            AppLog.info("Navigated to: " + newLoc);
+            AppLog.info("Navigated to: " + safeBrowserUrl(newLoc));
             updateAddressPill(newLoc);
         });
         engine.titleProperty().addListener((obs, oldTitle, newTitle) -> {
@@ -207,7 +209,7 @@ public class BrowserController implements Initializable {
         });
 
         engine.setOnError(event -> AppLog.severe("[WebView engine error] " + event.getMessage()
-                + " (url: " + engine.getLocation() + ")", event.getException()));
+                + " (url: " + safeBrowserUrl(engine.getLocation()) + ")", event.getException()));
     }
 
     private void reflectWorkerState(Worker.State state) {
@@ -218,12 +220,12 @@ public class BrowserController implements Initializable {
             case RUNNING, SCHEDULED -> hideError();
             case SUCCEEDED -> {
                 hideError();
-                AppLog.info("Loaded: " + engine.getLocation());
+                AppLog.info("Loaded: " + safeBrowserUrl(engine.getLocation()));
                 updateWindowTitle(engine.getTitle());
             }
             case FAILED -> {
                 Throwable ex = engine.getLoadWorker().getException();
-                AppLog.severe("Page load failed: " + engine.getLocation(), ex);
+                AppLog.severe("Page load failed: " + safeBrowserUrl(engine.getLocation()), ex);
                 showError(messageOf(ex));
             }
             case CANCELLED -> {
@@ -232,7 +234,7 @@ public class BrowserController implements Initializable {
                     AppLog.warning("Navigation cancelled before anything loaded.");
                     showError("Navigation was cancelled before anything loaded.");
                 } else {
-                    AppLog.fine("Load cancelled for: " + engine.getLocation());
+                    AppLog.fine("Load cancelled for: " + safeBrowserUrl(engine.getLocation()));
                 }
             }
             default -> {
@@ -305,9 +307,7 @@ public class BrowserController implements Initializable {
      * Offer a real-browser fallback rather than pretending the checkbox worked.
      */
     private void onCloudflareChallengeDetected(WebEngine challengedEngine, String detail) {
-        String currentChallengeUrl = challengedEngine.getLocation();
-        String challengedUrl = currentChallengeUrl == null || currentChallengeUrl.isBlank()
-                ? ArenaConfig.HOME_URL : currentChallengeUrl;
+        String challengedUrl = safeBrowserUrl(challengedEngine.getLocation());
         AppLog.warning("Cloudflare verification detected in embedded WebView at "
                 + challengedUrl + " — " + detail);
 
@@ -316,18 +316,15 @@ public class BrowserController implements Initializable {
         defer.setOnFinished(e -> {
             Alert alert = new Alert(Alert.AlertType.WARNING);
             alert.setTitle(ArenaConfig.APP_TITLE);
-            alert.setHeaderText("Cloudflare verification may not finish in the app");
-            alert.setContentText("This app embeds JavaFX WebView (WebKit), not a full Chrome or Edge browser. "
-                    + "Some Cloudflare human-verification checks cannot complete in this embedded browser, "
-                    + "even when the checkbox is clicked. The app will not bypass the check.\n\n"
-                    + "Open this page in your system browser to continue there. The system browser has a separate "
-                    + "cookie store, so verification or sign-in completed there may not carry back into Arena here. "
-                    + "If the challenge keeps looping in the app, use Arena in your system browser for now.");
+            alert.setHeaderText("Cloudflare check is not completing in the app");
+            alert.setContentText("The embedded JavaFX WebView reported a Cloudflare challenge or block page. "
+                    + "Reloading here may repeat the check.\n\n"
+                    + "Continue in Chrome or Edge using the system browser. Verification completed there is stored "
+                    + "separately and cannot be transferred into the app.");
 
             ButtonType openBrowser = new ButtonType("Open in browser", ButtonBar.ButtonData.OK_DONE);
-            ButtonType retryHere = new ButtonType("Retry in app", ButtonBar.ButtonData.OTHER);
             ButtonType dismiss = new ButtonType("Dismiss", ButtonBar.ButtonData.CANCEL_CLOSE);
-            alert.getButtonTypes().setAll(openBrowser, retryHere, dismiss);
+            alert.getButtonTypes().setAll(openBrowser, dismiss);
 
             Window owner = root.getScene() == null ? null : root.getScene().getWindow();
             if (owner != null) {
@@ -337,9 +334,6 @@ public class BrowserController implements Initializable {
             Optional<ButtonType> choice = alert.showAndWait();
             if (choice.isPresent() && choice.get() == openBrowser) {
                 openInSystemBrowser(challengedUrl);
-            } else if (choice.isPresent() && choice.get() == retryHere) {
-                AppLog.info("Retrying Cloudflare verification in the embedded browser: " + challengedUrl);
-                challengedEngine.reload();
             }
         });
         defer.play();
@@ -347,7 +341,7 @@ public class BrowserController implements Initializable {
 
     /** A page explicitly reports a sign-in failure: log it loudly and guide the user. */
     private void onAuthErrorDetected(String detail) {
-        AppLog.severe("Sign-in issue detected on " + engine.getLocation() + " — " + detail);
+        AppLog.severe("Sign-in issue detected on " + safeBrowserUrl(engine.getLocation()) + " — " + detail);
         Alert alert = new Alert(Alert.AlertType.WARNING);
         alert.setTitle(ArenaConfig.APP_TITLE);
         alert.setHeaderText("The page reports a sign-in error");
@@ -387,7 +381,7 @@ public class BrowserController implements Initializable {
             confirm.getButtonTypes().setAll(reload, later);
             Optional<ButtonType> choice = confirm.showAndWait();
             if (choice.isPresent() && choice.get() == reload) {
-                AppLog.info("Reloading after sign-in window closed: " + engine.getLocation());
+                AppLog.info("Reloading after sign-in window closed: " + safeBrowserUrl(engine.getLocation()));
                 engine.reload();
             }
         });
@@ -400,7 +394,7 @@ public class BrowserController implements Initializable {
         backButton.setOnAction(e -> go(-1));
         forwardButton.setOnAction(e -> go(1));
         reloadButton.setOnAction(e -> {
-            AppLog.info("Reload: " + engine.getLocation());
+            AppLog.info("Reload: " + safeBrowserUrl(engine.getLocation()));
             engine.reload();
         });
         homeButton.setOnAction(e -> {
@@ -474,10 +468,11 @@ public class BrowserController implements Initializable {
     }
 
     private void copyCurrentUrlToClipboard() {
+        String urlToCopy = safeBrowserUrl(currentLocation());
         ClipboardContent content = new ClipboardContent();
-        content.putString(currentLocation());
+        content.putString(urlToCopy);
         Clipboard.getSystemClipboard().setContent(content);
-        AppLog.fine("Copied page URL to clipboard: " + currentLocation());
+        AppLog.fine("Copied page URL to clipboard: " + urlToCopy);
 
         String original = addressPill.getText();
         addressPill.setText("✓ Link copied");
@@ -577,21 +572,38 @@ public class BrowserController implements Initializable {
         return ArenaConfig.HOME_URL;
     }
 
-    private void openInSystemBrowser(String url) {
+    /** Removes one-time Cloudflare challenge tokens before opening or logging a URL. */
+    private static String safeBrowserUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return ArenaConfig.HOME_URL;
+        }
+        String lower = url.toLowerCase(Locale.ROOT);
+        if (!lower.contains("__cf_chl_") && !lower.contains("/cdn-cgi/challenge-platform/")) {
+            return url;
+        }
         try {
-            if (url != null && Desktop.isDesktopSupported()
+            return new URI(url).resolve("/").toString();
+        } catch (Exception ignored) {
+            return ArenaConfig.HOME_URL;
+        }
+    }
+
+    private void openInSystemBrowser(String url) {
+        String safeUrl = safeBrowserUrl(url);
+        try {
+            if (Desktop.isDesktopSupported()
                     && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                AppLog.info("Opened in system browser: " + url);
-                Desktop.getDesktop().browse(new URI(url));
+                AppLog.info("Opened in system browser: " + safeUrl);
+                Desktop.getDesktop().browse(new URI(safeUrl));
                 return;
             }
         } catch (Exception ex) {
-            AppLog.warning("Could not open system browser for " + url, ex);
+            AppLog.warning("Could not open system browser for " + safeUrl, ex);
         }
-        // Fallback: copy the link so the user can paste it into a browser.
+        // Fallback: copy the sanitized link so the user can paste it into a browser.
         try {
             ClipboardContent content = new ClipboardContent();
-            content.putString(url);
+            content.putString(safeUrl);
             Clipboard.getSystemClipboard().setContent(content);
         } catch (Exception ignored) {
             // Nothing more we can do.
