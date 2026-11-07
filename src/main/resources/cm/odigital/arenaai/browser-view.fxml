@@ -46,12 +46,17 @@
                 </Label>
                 <Button fx:id="externalButton" text="↗" styleClass="nav-button">
                     <tooltip>
-                        <Tooltip text="Open current page in system browser"/>
+                        <Tooltip text="Open current page in system browser (separate cookies)"/>
                     </tooltip>
                 </Button>
                 <Button fx:id="clearDataButton" text="Log out" styleClass="nav-button">
                     <tooltip>
                         <Tooltip text="Log out and clear browsing data"/>
+                    </tooltip>
+                </Button>
+                <Button fx:id="updateButton" text="Update" styleClass="nav-button">
+                    <tooltip>
+                        <Tooltip text="Check GitHub for Arena updates"/>
                     </tooltip>
                 </Button>
                 <Button fx:id="logsButton" text="Logs" styleClass="nav-button">

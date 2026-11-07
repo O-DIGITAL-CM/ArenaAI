@@ -31,10 +31,12 @@ the repo ships the `mvnw` wrapper).
 |---|---|
 | `src/main/java/cm/odigital/arenaai/Launcher.java` | `main()` entry — sets up logging, launches `ArenaApplication` (also the `jpackage` entry) |
 | `.../ArenaApplication.java` | App orchestration: preload site → splash → fade to main window; remembers window size |
-| `.../ArenaConfig.java` | One place for the URL, timings, user agent, window defaults, auth-popup hosts |
+| `.../ArenaConfig.java` | One place for the URL, version, timings, window defaults and auth-popup hosts |
 | `.../SplashController.java` | Splash logic: tips rotation, status text, progress binding, fade in/out |
 | `.../BrowserController.java` | Main window: toolbar, history, address pill, error overlay, shortcuts, JS dialogs, pop-up handling, log-out, logs, sign-in recovery |
-| `.../WebViewFactory.java` | Builds the pre-configured `WebView` (JS on, desktop Chrome-on-Windows user agent) |
+| `.../UpdateManager.java` | Startup/manual update checks, download progress, installer prompt and launch |
+| `.../UpdateService.java` | Queries the public GitHub Releases API, downloads the Windows installer, verifies SHA-256 |
+| `.../WebViewFactory.java` | Builds the pre-configured `WebView` (JS on, native WebKit user agent retained) |
 | `.../CookiePersistence.java` | Installs the file-backed cookie handler; `clearAll()` for log-out |
 | `.../PersistentCookieStore.java` | `CookieStore` that saves cookies to disk on every change and reloads them on launch |
 | `.../AppPaths.java` | Resolves the per-user data dir (`%APPDATA%\Arena`) |
@@ -46,7 +48,7 @@ the repo ships the `mvnw` wrapper).
 | `src/main/resources/cm/odigital/arenaai/browser-view.fxml` | Main window layout (toolbar + `WebView` container + error overlay) |
 | `.../css/splash.css`, `.../css/browser.css` | Discord-ish dark themes |
 | `.../images/arena-logo.png` | App logo (splash + window icon). Replace with your own art anytime |
-| `package-windows.ps1` | One-command Windows packaging (portable folder or installer) |
+| `package-windows.ps1` | Windows packaging; installer builds get a SHA-256 sidecar and a stable upgrade identity |
 
 ## Change the website / splash timing
 
@@ -76,7 +78,39 @@ never gets stuck on the splash, even offline.
 
 What the script does: `mvnw clean package` → `mvnw javafx:jlink`
 (trimmed runtime in `target\app`) → `jpackage` with Start-Menu entry,
-desktop shortcut and install-dir chooser.
+desktop shortcut and install-dir chooser. `-AppVersion` is also passed into the
+application so the updater compares the version actually installed. Installer
+builds use a stable Windows upgrade UUID; do not change it between releases.
+
+## Updating from GitHub Releases
+
+- Builds made before the updater was added cannot update themselves. Install the
+  first updater-enabled build once using its Windows installer; subsequent
+  releases can be installed from inside the app.
+- The app checks the public `O-DIGITAL-CM/ArenaAI` GitHub Releases page after
+  startup. Use the **Update** toolbar button to check manually. No GitHub token
+  is needed.
+- When a newer stable release is found, the app offers **Download and install**.
+  It downloads the Windows `.exe` installer, verifies the attached SHA-256 file,
+  launches the installer, then closes Arena. It never installs without the
+  user's confirmation.
+- To publish an update, build a Windows installer with the matching version,
+  for example:
+
+  ```powershell
+  .\package-windows.ps1 -Type exe -AppVersion 1.0.1
+  ```
+
+  Create a GitHub Release tagged `v1.0.1` and attach both
+  `target\dist\Arena-1.0.1.exe` and the generated
+  `target\dist\Arena-1.0.1.exe.sha256`. The tag and `-AppVersion` must match
+  (`vX.Y.Z` / `X.Y.Z`); the updater expects those exact asset names. The release
+  must be published (not a draft or prerelease) for the `/releases/latest` API
+  endpoint to return it.
+- The in-app installer is currently Windows-only. Updating from a portable
+  `app-image` launches a normal Windows installer; it does not replace the
+  portable folder. Users of portable builds should download the new portable
+  package manually.
 
 ## App icon for the installer
 
@@ -154,9 +188,17 @@ desktop shortcut and install-dir chooser.
 ## Good to know / limitations
 
 - The embedded browser is JavaFX `WebView` (WebKit-based), **not** full
-  Chrome: most of arena.ai works fine, but some cutting-edge web features,
-  DRM video or exotic CSS may render differently than in Chrome/Edge.
-  If a page misbehaves, the `↗` button opens it in the system browser.
+  Chrome/Edge: most of arena.ai works fine, but some cutting-edge web features,
+  DRM video or exotic CSS may render differently than in Chrome/Edge. The app
+  keeps WebKit's real user agent instead of advertising an older Chrome version
+  the embedded engine does not actually implement.
+- Cloudflare verification can appear inside the app but may not finish in the
+  embedded WebKit engine. The app detects common Cloudflare challenge pages and
+  offers to open that page in the system browser. Cookies are separate between
+  the app and the system browser, so verification completed in Chrome/Edge may
+  not carry back into the app; if the challenge keeps looping, continue using
+  Arena in the system browser for that session. The `↗` toolbar button remains
+  available to open any current page externally.
 - `target="_blank"` links and `window.open(...)` pop-ups open in the system
   browser, **except sign-in flows**, which stay in-app (see above).
 - JavaScript `alert` / `confirm` / `prompt` are mapped to native dialogs.

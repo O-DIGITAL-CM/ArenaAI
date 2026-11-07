@@ -23,7 +23,8 @@ public final class ArenaConfig {
     /** Base window title. The current page title is prepended to it. */
     public static final String APP_TITLE = "Arena";
 
-    public static final String APP_VERSION = "1.0.0";
+    /** Set by the Windows packaging script; falls back to the source/dev version. */
+    public static final String APP_VERSION = System.getProperty("arena.app.version", "1.0.0");
 
     /**
      * Minimum time in milliseconds the splash screen stays visible,
@@ -36,15 +37,6 @@ public final class ArenaConfig {
      * the main window anyway (with an offline/error state if needed).
      */
     public static final long SPLASH_MAX_WAIT_MS = 20_000;
-
-    /**
-     * Desktop Chrome-on-Windows user agent so arena.ai serves the full
-     * desktop experience inside the embedded browser.
-     */
-    public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            + "AppleWebKit/537.36 (KHTML, like Gecko) "
-            + "Chrome/126.0.0.0 Safari/537.36 "
-            + "ArenaDesktop/" + APP_VERSION;
 
     public static final double WINDOW_WIDTH = 1280;
     public static final double WINDOW_HEIGHT = 800;

@@ -13,8 +13,10 @@ public final class WebViewFactory {
     }
 
     /**
-     * Creates a WebView tuned for desktop browsing: JavaScript enabled,
-     * desktop Chrome-on-Windows user agent, default context menu kept.
+     * Creates a WebView tuned for desktop browsing: JavaScript enabled and
+     * the WebKit engine's real user agent retained. Spoofing a Chrome version
+     * that this WebView does not actually implement can make browser checks
+     * (including Cloudflare verification) fail or loop.
      *
      * <p>Must be called on the JavaFX Application Thread.</p>
      */
@@ -22,7 +24,7 @@ public final class WebViewFactory {
         WebView webView = new WebView();
         WebEngine engine = webView.getEngine();
         engine.setJavaScriptEnabled(true);
-        engine.setUserAgent(ArenaConfig.USER_AGENT);
+        AppLog.info("Using native WebView user agent: " + engine.getUserAgent());
         webView.setContextMenuEnabled(true);
         webView.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         return webView;

@@ -7,6 +7,8 @@
     2. Builds a trimmed runtime image via the javafx-maven-plugin (javafx:jlink).
     3. Runs jpackage to produce either a portable folder (app-image, no extra
        tools needed) or a real installer (msi / exe, requires WiX Toolset v3).
+    4. Installer builds share a stable upgrade UUID; exe builds emit a SHA-256
+       sidecar for publishing as a GitHub Release asset.
 
 .EXAMPLE
     .\package-windows.ps1
@@ -66,10 +68,20 @@ if ($Type -ne "app-image") {
 $Dest = Join-Path $RepoRoot "target\dist"
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 
+# Keep this UUID unchanged between releases so Windows recognizes an upgrade
+# as the same installed application (rather than a separate product).
+$InstallerArgs = @()
+if ($Type -ne "app-image") {
+    $InstallerArgs = @(
+        "--win-upgrade-uuid", "17e9d0d3-bfa7-4aee-928c-af43cbebcf2d"
+    )
+}
+
 $JPackageArgs = @(
     "--type", $Type,
     "--name", "Arena",
     "--app-version", $AppVersion,
+    "--java-options", "-Darena.app.version=$AppVersion",
     "--vendor", "O'Digital",
     "--description", "Arena desktop app - arena.ai on your Windows desktop.",
     "--copyright", "O'Digital",
@@ -79,11 +91,21 @@ $JPackageArgs = @(
     "--win-menu",
     "--win-shortcut",
     "--win-dir-chooser"
-) + $IconArg
+) + $IconArg + $InstallerArgs
 
 Write-Host "==> Running: jpackage $($JPackageArgs -join ' ')" -ForegroundColor Cyan
 & jpackage @JPackageArgs
 if ($LASTEXITCODE -ne 0) { throw "jpackage failed." }
+
+# The in-app updater refuses to launch an installer without a matching SHA-256.
+if ($Type -eq "exe") {
+    $InstallerPath = Join-Path $Dest "Arena-$AppVersion.exe"
+    if (-not (Test-Path $InstallerPath)) { throw "Expected installer not found at $InstallerPath" }
+    $InstallerHash = (Get-FileHash -Path $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $ChecksumPath = "$($InstallerPath).sha256"
+    "$InstallerHash  $(Split-Path -Leaf $InstallerPath)" | Set-Content -Path $ChecksumPath -Encoding ascii
+    Write-Host "SHA-256 file: $ChecksumPath" -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "Done! Output is in target\dist" -ForegroundColor Green

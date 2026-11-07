@@ -63,6 +63,8 @@ public class BrowserController implements Initializable {
     @FXML
     private Button logsButton;
     @FXML
+    private Button updateButton;
+    @FXML
     private Label addressPill;
     @FXML
     private ProgressBar loadProgress;
@@ -81,6 +83,7 @@ public class BrowserController implements Initializable {
     private WebEngine engine;
     private WebHistory history;
     private Tooltip addressTooltip;
+    private UpdateManager updateManager;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -111,6 +114,8 @@ public class BrowserController implements Initializable {
         AppLog.info("Main window attached to preloaded page: " + engine.getLocation());
         JsConsoleBridge.install(engine);
         AuthErrorWatcher.watch(engine, this::onAuthErrorDetected);
+        CloudflareChallengeWatcher.watch(engine,
+                detail -> onCloudflareChallengeDetected(engine, detail));
 
         // Index 0 keeps the error overlay (declared in FXML) on top.
         webContainer.getChildren().add(0, webView);
@@ -124,6 +129,9 @@ public class BrowserController implements Initializable {
         wireToolbar();
         wireShortcuts();
         wireHistoryButtons();
+        updateManager = new UpdateManager(updateButton, root, ArenaConfig.APP_VERSION);
+        updateButton.setOnAction(e -> updateManager.checkForUpdatesManually());
+        updateManager.scheduleAutomaticCheck();
 
         // The page may already have settled while the splash was showing.
         reflectWorkerState(engine.getLoadWorker().getState());
@@ -156,7 +164,6 @@ public class BrowserController implements Initializable {
             WebView popupView = new WebView();
             popupView.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
             WebEngine popupEngine = popupView.getEngine();
-            popupEngine.setUserAgent(ArenaConfig.USER_AGENT);
             AppLog.fine("Popup requested by page; waiting for its URL…");
             popupEngine.locationProperty().addListener(new ChangeListener<>() {
                 @Override
@@ -247,6 +254,8 @@ public class BrowserController implements Initializable {
         if (ArenaConfig.OPEN_AUTH_POPUPS_IN_APP && ArenaConfig.isAuthPopupHost(host)) {
             AppLog.info("Popup (sign-in) kept in-app: " + url);
             JsConsoleBridge.install(popupView.getEngine());
+            CloudflareChallengeWatcher.watch(popupView.getEngine(),
+                    detail -> onCloudflareChallengeDetected(popupView.getEngine(), detail));
             Window owner = root.getScene() != null ? root.getScene().getWindow() : null;
             AuthPopupDialog.show(popupView, url, owner, this::offerReloadIfStillSignedOut);
         } else {
@@ -267,7 +276,53 @@ public class BrowserController implements Initializable {
         }
     }
 
-    // --- Sign-in recovery ---
+    // --- Sign-in and browser-challenge recovery ---
+
+    /**
+     * Cloudflare's challenge can render in JavaFX WebView but fail to complete
+     * because this embedded WebKit engine is not a full Chrome/Edge browser.
+     * Offer a real-browser fallback rather than pretending the checkbox worked.
+     */
+    private void onCloudflareChallengeDetected(WebEngine challengedEngine, String detail) {
+        String currentChallengeUrl = challengedEngine.getLocation();
+        String challengedUrl = currentChallengeUrl == null || currentChallengeUrl.isBlank()
+                ? ArenaConfig.HOME_URL : currentChallengeUrl;
+        AppLog.warning("Cloudflare verification detected in embedded WebView at "
+                + challengedUrl + " — " + detail);
+
+        // Let the splash-to-main transition finish before showing a modal.
+        PauseTransition defer = new PauseTransition(Duration.millis(350));
+        defer.setOnFinished(e -> {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(ArenaConfig.APP_TITLE);
+            alert.setHeaderText("Cloudflare verification may not finish in the app");
+            alert.setContentText("This app embeds JavaFX WebView (WebKit), not a full Chrome or Edge browser. "
+                    + "Some Cloudflare human-verification checks cannot complete in this embedded browser, "
+                    + "even when the checkbox is clicked. The app will not bypass the check.\n\n"
+                    + "Open this page in your system browser to continue there. The system browser has a separate "
+                    + "cookie store, so verification or sign-in completed there may not carry back into Arena here. "
+                    + "If the challenge keeps looping in the app, use Arena in your system browser for now.");
+
+            ButtonType openBrowser = new ButtonType("Open in browser", ButtonBar.ButtonData.OK_DONE);
+            ButtonType retryHere = new ButtonType("Retry in app", ButtonBar.ButtonData.OTHER);
+            ButtonType dismiss = new ButtonType("Dismiss", ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(openBrowser, retryHere, dismiss);
+
+            Window owner = root.getScene() == null ? null : root.getScene().getWindow();
+            if (owner != null) {
+                alert.initOwner(owner);
+            }
+
+            Optional<ButtonType> choice = alert.showAndWait();
+            if (choice.isPresent() && choice.get() == openBrowser) {
+                openInSystemBrowser(challengedUrl);
+            } else if (choice.isPresent() && choice.get() == retryHere) {
+                AppLog.info("Retrying Cloudflare verification in the embedded browser: " + challengedUrl);
+                challengedEngine.reload();
+            }
+        });
+        defer.play();
+    }
 
     /** A page explicitly reports a sign-in failure: log it loudly and guide the user. */
     private void onAuthErrorDetected(String detail) {

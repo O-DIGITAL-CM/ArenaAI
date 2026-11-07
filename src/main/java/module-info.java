@@ -5,6 +5,7 @@ module cm.odigital.arenaai {
     requires java.desktop;
     requires java.logging;
     requires java.prefs;
+    requires java.net.http;
     requires jdk.jsobject;
 
     requires org.controlsfx.controls;
