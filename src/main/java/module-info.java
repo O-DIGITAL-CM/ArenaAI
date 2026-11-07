@@ -6,6 +6,7 @@ module cm.odigital.arenaai {
     requires java.logging;
     requires java.prefs;
     requires java.net.http;
+    requires jdk.crypto.ec; // Retain SunEC for TLS key exchange in the jlink runtime.
     requires jdk.jsobject;
 
     requires org.controlsfx.controls;

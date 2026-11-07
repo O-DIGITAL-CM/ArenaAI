@@ -37,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import javax.net.ssl.SSLHandshakeException;
 
 /**
  * Controls the main window: a slim desktop browser chrome (back / forward /
@@ -241,10 +242,30 @@ public class BrowserController implements Initializable {
     }
 
     private static String messageOf(Throwable ex) {
+        if (isSslHandshakeFailure(ex)) {
+            return "The secure connection to Arena failed during TLS negotiation. Check your PC's date and time "
+                    + "and install pending Windows updates, then retry. A VPN, proxy, or HTTPS-inspecting network "
+                    + "security product can also cause this; try a trusted alternate network or ask its administrator "
+                    + "about the certificate. If Arena works in Chrome or Edge but not here, open Logs and share the "
+                    + "SSL error details.";
+        }
         if (ex == null || ex.getMessage() == null || ex.getMessage().isBlank()) {
             return "The page could not be loaded. Check your internet connection and retry.";
         }
         return "The page could not be loaded (" + ex.getMessage() + "). Check your internet connection and retry.";
+    }
+
+    private static boolean isSslHandshakeFailure(Throwable ex) {
+        for (Throwable current = ex; current != null; current = current.getCause()) {
+            if (current instanceof SSLHandshakeException) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains("ssl handshake failed")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // --- Popups ---

@@ -47,7 +47,8 @@ the repo ships the `mvnw` wrapper).
 | `src/main/resources/cm/odigital/arenaai/splash-view.fxml` | Splash layout (borderless card) |
 | `src/main/resources/cm/odigital/arenaai/browser-view.fxml` | Main window layout (toolbar + `WebView` container + error overlay) |
 | `.../css/splash.css`, `.../css/browser.css` | Discord-ish dark themes |
-| `.../images/arena-logo.png` | App logo (splash + window icon). Replace with your own art anytime |
+| `.../images/arena-logo.png` | App logo (splash + in-app window icon) |
+| `src/main/resources/arena-icon.ico` | Windows installer icon generated from the bundled logo |
 | `package-windows.ps1` | Windows packaging; installer builds get a SHA-256 sidecar and a stable upgrade identity |
 
 ## Change the website / splash timing
@@ -73,7 +74,7 @@ never gets stuck on the splash, even offline.
 
 # Real installers (require WiX Toolset v3 on PATH: https://wixtoolset.org)
 .\package-windows.ps1 -Type msi
-.\package-windows.ps1 -Type exe -AppVersion 1.0.1
+.\package-windows.ps1 -Type exe -AppVersion 1.0.2
 ```
 
 What the script does: `mvnw clean package` → `mvnw javafx:jlink`
@@ -81,6 +82,11 @@ What the script does: `mvnw clean package` → `mvnw javafx:jlink`
 desktop shortcut and install-dir chooser. `-AppVersion` is also passed into the
 application so the updater compares the version actually installed. Installer
 builds use a stable Windows upgrade UUID; do not change it between releases.
+
+The `.github/workflows/windows-installer.yml` workflow also builds the `.exe`
+and checksum on pushes to `master`/`arena/**` or when manually dispatched, then
+uploads them as a GitHub Actions artifact. The workflow artifact is not itself a
+GitHub Release; attach both files to a published release for in-app updates.
 
 ## Updating from GitHub Releases
 
@@ -98,12 +104,12 @@ builds use a stable Windows upgrade UUID; do not change it between releases.
   for example:
 
   ```powershell
-  .\package-windows.ps1 -Type exe -AppVersion 1.0.1
+  .\package-windows.ps1 -Type exe -AppVersion 1.0.2
   ```
 
-  Create a GitHub Release tagged `v1.0.1` and attach both
-  `target\dist\Arena-1.0.1.exe` and the generated
-  `target\dist\Arena-1.0.1.exe.sha256`. The tag and `-AppVersion` must match
+  Create a GitHub Release tagged `v1.0.2` and attach both
+  `target\dist\Arena-1.0.2.exe` and the generated
+  `target\dist\Arena-1.0.2.exe.sha256`. The tag and `-AppVersion` must match
   (`vX.Y.Z` / `X.Y.Z`); the updater expects those exact asset names. The release
   must be published (not a draft or prerelease) for the `/releases/latest` API
   endpoint to return it.
@@ -114,14 +120,10 @@ builds use a stable Windows upgrade UUID; do not change it between releases.
 
 ## App icon for the installer
 
-`jpackage` on Windows needs **`.ico`** format. To use the bundled logo:
-
-1. Convert `src/main/resources/cm/odigital/arenaai/images/arena-logo.png`
-   to `.ico` (e.g. with GIMP, IrfanView, or an online PNG→ICO converter).
-2. Save it as `src/main/resources/arena-icon.ico`.
-3. Re-run `.\package-windows.ps1` — it picks the icon up automatically.
-
-(The in-app splash + window icon already use the PNG directly.)
+`src/main/resources/arena-icon.ico` is included and is generated from the
+bundled Arena logo. The Windows packaging script passes it to `jpackage`
+automatically. The splash and in-app window continue to use the PNG directly.
+Replace the `.ico` file if you want a different installer icon.
 
 ## Shortcuts
 
@@ -199,6 +201,12 @@ builds use a stable Windows upgrade UUID; do not change it between releases.
   not carry back into the app; if the challenge keeps looping, continue using
   Arena in the system browser for that session. The `↗` toolbar button remains
   available to open any current page externally.
+- If the page reports **SSL handshake failed**, the TLS connection stopped before
+  Arena could return any page or Cloudflare challenge. The bundled runtime now
+  explicitly includes the JDK EC/TLS provider. If it still happens, check the
+  PC clock and Windows updates, then test on a trusted network without a VPN or
+  HTTPS-inspecting proxy; the **Logs** button records whether the EC provider
+  loaded and the handshake exception details.
 - `target="_blank"` links and `window.open(...)` pop-ups open in the system
   browser, **except sign-in flows**, which stay in-app (see above).
 - JavaScript `alert` / `confirm` / `prompt` are mapped to native dialogs.

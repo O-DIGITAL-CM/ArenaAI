@@ -1,0 +1,75 @@
+name: Windows installer
+
+on:
+  push:
+    branches:
+      - master
+      - 'arena/**'
+    paths:
+      - '.github/workflows/windows-installer.yml'
+      - '.mvn/**'
+      - 'mvnw.cmd'
+      - 'pom.xml'
+      - 'package-windows.ps1'
+      - 'src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Ensure WiX Toolset 3 is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
+            choco install wixtoolset -y --no-progress
+          }
+          $wix = Get-ChildItem 'C:\Program Files (x86)' -Directory -Filter 'WiX Toolset v3*' -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+          if ($wix) {
+            $wixBin = Join-Path $wix.FullName 'bin'
+            if (Test-Path $wixBin) {
+              Add-Content -Path $env:GITHUB_PATH -Value $wixBin
+              $env:Path = "$wixBin;$env:Path"
+            }
+          }
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
+            throw 'WiX Toolset 3 (candle.exe) is required by jpackage.'
+          }
+
+      - name: Read application version
+        id: app-version
+        shell: pwsh
+        run: |
+          [xml]$pom = Get-Content pom.xml -Raw
+          $version = $pom.SelectSingleNode("/*[local-name()='project']/*[local-name()='version']").InnerText
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid installer version: $version" }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build the Windows installer
+        shell: pwsh
+        run: .\package-windows.ps1 -Type exe -AppVersion '${{ steps.app-version.outputs.version }}'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arena-${{ steps.app-version.outputs.version }}-Windows
+          path: |
+            target/dist/Arena-${{ steps.app-version.outputs.version }}.exe
+            target/dist/Arena-${{ steps.app-version.outputs.version }}.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
