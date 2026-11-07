@@ -83,10 +83,11 @@ desktop shortcut and install-dir chooser. `-AppVersion` is also passed into the
 application so the updater compares the version actually installed. Installer
 builds use a stable Windows upgrade UUID; do not change it between releases.
 
-The `.github/workflows/windows-installer.yml` workflow also builds the `.exe`
-and checksum on pushes to `master`/`arena/**` or when manually dispatched, then
-uploads them as a GitHub Actions artifact. The workflow artifact is not itself a
-GitHub Release; attach both files to a published release for in-app updates.
+The `.github/workflows/windows-installer.yml` workflow builds the `.exe` and
+checksum on pushes to `master`/`arena/**` or when manually dispatched, then
+uploads them as an Actions artifact. To publish a release from a manual run,
+set `publish_release` to `true`; it creates the matching `vX.Y.Z` release and
+attaches both files. Otherwise the build remains an Actions artifact only.
 
 ## Updating from GitHub Releases
 
@@ -100,14 +101,17 @@ GitHub Release; attach both files to a published release for in-app updates.
   It downloads the Windows `.exe` installer, verifies the attached SHA-256 file,
   launches the installer, then closes Arena. It never installs without the
   user's confirmation.
-- To publish an update, build a Windows installer with the matching version,
-  for example:
+- To publish through GitHub Actions, manually dispatch the Windows installer
+  workflow from the intended source branch and set `publish_release` to `true`.
+  It reads the version from `pom.xml`, creates the matching `vX.Y.Z` tag on that
+  commit, builds the installer and checksum, and publishes both as release
+  assets. For a local build, run:
 
   ```powershell
   .\package-windows.ps1 -Type exe -AppVersion 1.0.2
   ```
 
-  Create a GitHub Release tagged `v1.0.2` and attach both
+  Then create a published GitHub Release tagged `v1.0.2` and attach both
   `target\dist\Arena-1.0.2.exe` and the generated
   `target\dist\Arena-1.0.2.exe.sha256`. The tag and `-AppVersion` must match
   (`vX.Y.Z` / `X.Y.Z`); the updater expects those exact asset names. The release

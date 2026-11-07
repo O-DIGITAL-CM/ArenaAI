@@ -13,12 +13,20 @@ on:
       - 'package-windows.ps1'
       - 'src/**'
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Create and publish a GitHub Release after the Windows build
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   build-installer:
+    permissions:
+      contents: write
     runs-on: windows-latest
     steps:
       - name: Check out source
@@ -73,3 +81,19 @@ jobs:
             target/dist/Arena-${{ steps.app-version.outputs.version }}.exe.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish the versioned GitHub Release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.app-version.outputs.version }}'
+          $tag = "v$version"
+          $installer = "target/dist/Arena-$version.exe"
+          $checksum = "$installer.sha256"
+          if (-not (Test-Path $installer) -or -not (Test-Path $checksum)) {
+            throw "Installer or checksum is missing for $tag."
+          }
+          gh release create $tag $installer $checksum --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Arena $version" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish GitHub Release $tag." }
