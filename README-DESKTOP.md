@@ -212,5 +212,7 @@ Replace the `.ico` file if you want a different installer icon.
 - JavaScript `alert` / `confirm` / `prompt` are mapped to native dialogs.
 - Downloads: `WebView` has no download manager — file downloads triggered
   by the site may not work inside the app; use the system browser for those.
-- No build was run in this environment (Java/Maven excluded) — first run
-  `.\mvnw.cmd javafx:run` on a machine with JDK 21 to verify.
+- The Windows installer has been packaged by the GitHub Actions workflow on
+  JDK 21. That validates compilation and packaging, not a live TLS connection to
+  arena.ai; verify the handshake on the affected Windows network. For local
+  development, run `.\mvnw.cmd javafx:run` on a machine with JDK 21.
