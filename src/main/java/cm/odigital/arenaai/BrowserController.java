@@ -1,6 +1,7 @@
 package cm.odigital.arenaai;
 
 import javafx.animation.PauseTransition;
+import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.ListChangeListener;
@@ -313,7 +314,7 @@ public class BrowserController implements Initializable {
 
         // Let the splash-to-main transition finish before showing a modal.
         PauseTransition defer = new PauseTransition(Duration.millis(350));
-        defer.setOnFinished(e -> {
+        defer.setOnFinished(e -> Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.WARNING);
             alert.setTitle(ArenaConfig.APP_TITLE);
             alert.setHeaderText("Cloudflare check is not completing in the app");
@@ -330,12 +331,13 @@ public class BrowserController implements Initializable {
             if (owner != null) {
                 alert.initOwner(owner);
             }
-
-            Optional<ButtonType> choice = alert.showAndWait();
-            if (choice.isPresent() && choice.get() == openBrowser) {
-                openInSystemBrowser(challengedUrl);
-            }
-        });
+            alert.setOnHidden(event -> {
+                if (alert.getResult() == openBrowser) {
+                    openInSystemBrowser(challengedUrl);
+                }
+            });
+            alert.show();
+        }));
         defer.play();
     }
 

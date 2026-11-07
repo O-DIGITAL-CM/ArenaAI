@@ -75,7 +75,7 @@ never gets stuck on the splash, even offline.
 
 # Real installers (require WiX Toolset v3 on PATH: https://wixtoolset.org)
 .\package-windows.ps1 -Type msi
-.\package-windows.ps1 -Type exe -AppVersion 1.0.3
+.\package-windows.ps1 -Type exe -AppVersion 1.0.4
 ```
 
 What the script does: `mvnw clean package` → `mvnw javafx:jlink`
@@ -109,12 +109,12 @@ attaches both files. Otherwise the build remains an Actions artifact only.
   assets. For a local build, run:
 
   ```powershell
-  .\package-windows.ps1 -Type exe -AppVersion 1.0.3
+  .\package-windows.ps1 -Type exe -AppVersion 1.0.4
   ```
 
-  Then create a published GitHub Release tagged `v1.0.3` and attach both
-  `target\dist\Arena-1.0.3.exe` and the generated
-  `target\dist\Arena-1.0.3.exe.sha256`. The tag and `-AppVersion` must match
+  Then create a published GitHub Release tagged `v1.0.4` and attach both
+  `target\dist\Arena-1.0.4.exe` and the generated
+  `target\dist\Arena-1.0.4.exe.sha256`. The tag and `-AppVersion` must match
   (`vX.Y.Z` / `X.Y.Z`); the updater expects those exact asset names. The release
   must be published (not a draft or prerelease) for the `/releases/latest` API
   endpoint to return it.
