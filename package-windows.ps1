@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds a native Windows package for the Arena desktop app.
 
@@ -22,7 +22,7 @@
 param(
     [ValidateSet("app-image", "msi", "exe")]
     [string]$Type = "app-image",
-    [string]$AppVersion = "1.0.0"
+    [string]$AppVersion = "1.0.1"
 )
 
 $ErrorActionPreference = "Stop"
