@@ -6,7 +6,7 @@
 
     <groupId>cm.odigital</groupId>
     <artifactId>ArenaAI</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <name>ArenaAI</name>
 
     <properties>
@@ -134,6 +134,10 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>cm.odigital.arenaai/cm.odigital.arenaai.ArenaApplication</mainClass>
+                            <options>
+                                <option>-XX:ActiveProcessorCount=1</option>
+                                <option>-Xmx1024m</option>
+                            </options>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>

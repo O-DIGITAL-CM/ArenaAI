@@ -43,6 +43,11 @@ public class ArenaApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        Runtime runtime = Runtime.getRuntime();
+        long maxHeapMiB = runtime.maxMemory() / (1024L * 1024L);
+        AppLog.info("JVM resource limits: active processors=" + runtime.availableProcessors()
+                + ", max Java heap=" + maxHeapMiB + " MiB");
+
         // 0 — File-backed cookies (stay logged in). Must precede any WebView creation.
         CookiePersistence.install();
 

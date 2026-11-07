@@ -24,7 +24,7 @@ public final class ArenaConfig {
     public static final String APP_TITLE = "Arena";
 
     /** Set by the Windows packaging script; falls back to the source/dev version. */
-    public static final String APP_VERSION = System.getProperty("arena.app.version", "1.0.4");
+    public static final String APP_VERSION = System.getProperty("arena.app.version", "1.0.5");
 
     /**
      * Minimum time in milliseconds the splash screen stays visible,

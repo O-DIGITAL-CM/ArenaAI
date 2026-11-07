@@ -22,7 +22,7 @@
 param(
     [ValidateSet("app-image", "msi", "exe")]
     [string]$Type = "app-image",
-    [string]$AppVersion = "1.0.4"
+    [string]$AppVersion = "1.0.5"
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,6 +81,8 @@ $JPackageArgs = @(
     "--type", $Type,
     "--name", "Arena",
     "--app-version", $AppVersion,
+    "--java-options", "-XX:ActiveProcessorCount=1",
+    "--java-options", "-Xmx1024m",
     "--java-options", "-Darena.app.version=$AppVersion",
     "--vendor", "O'Digital",
     "--description", "Arena desktop app - arena.ai on your Windows desktop.",

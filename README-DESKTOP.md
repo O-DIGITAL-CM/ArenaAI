@@ -25,6 +25,19 @@ the repo ships the `mvnw` wrapper).
 .\mvnw.cmd javafx:run
 ```
 
+The Maven run and packaged Windows app use `-XX:ActiveProcessorCount=1` and
+`-Xmx1024m`. For an IntelliJ Application configuration that launches
+`ArenaApplication` directly, add this to **Run → Edit Configurations → VM
+options**:
+
+```text
+-XX:ActiveProcessorCount=1 -Xmx1024m
+```
+
+These cap the processor count reported to the JVM and the Java heap respectively;
+they are not hard Windows CPU-affinity or total-process-memory quotas. JavaFX
+WebKit/native memory can make total process RAM exceed the 1 GiB heap cap.
+
 ## Project map
 
 | File | Role |
@@ -75,7 +88,7 @@ never gets stuck on the splash, even offline.
 
 # Real installers (require WiX Toolset v3 on PATH: https://wixtoolset.org)
 .\package-windows.ps1 -Type msi
-.\package-windows.ps1 -Type exe -AppVersion 1.0.4
+.\package-windows.ps1 -Type exe -AppVersion 1.0.5
 ```
 
 What the script does: `mvnw clean package` → `mvnw javafx:jlink`
@@ -109,12 +122,12 @@ attaches both files. Otherwise the build remains an Actions artifact only.
   assets. For a local build, run:
 
   ```powershell
-  .\package-windows.ps1 -Type exe -AppVersion 1.0.4
+  .\package-windows.ps1 -Type exe -AppVersion 1.0.5
   ```
 
-  Then create a published GitHub Release tagged `v1.0.4` and attach both
-  `target\dist\Arena-1.0.4.exe` and the generated
-  `target\dist\Arena-1.0.4.exe.sha256`. The tag and `-AppVersion` must match
+  Then create a published GitHub Release tagged `v1.0.5` and attach both
+  `target\dist\Arena-1.0.5.exe` and the generated
+  `target\dist\Arena-1.0.5.exe.sha256`. The tag and `-AppVersion` must match
   (`vX.Y.Z` / `X.Y.Z`); the updater expects those exact asset names. The release
   must be published (not a draft or prerelease) for the `/releases/latest` API
   endpoint to return it.
