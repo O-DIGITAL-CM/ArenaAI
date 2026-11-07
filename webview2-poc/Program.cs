@@ -193,7 +193,7 @@ internal sealed class BrowserForm : Form
 
     private void UpdateWindowTitle()
     {
-        string title = _browser.CoreWebView2?.DocumentTitle;
+        string? title = _browser.CoreWebView2?.DocumentTitle;
         Text = string.IsNullOrWhiteSpace(title)
             ? "Arena — WebView2 prototype"
             : title + " — Arena WebView2 prototype";
