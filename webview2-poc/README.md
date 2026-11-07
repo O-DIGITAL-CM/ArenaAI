@@ -14,7 +14,7 @@ dotnet publish .\Arena.WebView2Prototype.csproj `
   -o .\publish
 ```
 
-The GitHub Actions workflow **WebView2 prototype** builds this as a self-contained `win-x64` application and uploads `Arena-WebView2-Prototype.zip` as a workflow artifact. The Microsoft Edge WebView2 Runtime is still required on the test PC; the app shows an error if it cannot initialize the runtime.
+The GitHub Actions workflow **WebView2 prototype** builds this as a self-contained `win-x64` application and uploads the executable plus this README directly as the `Arena-WebView2-Prototype` artifact (downloaded as a ZIP). The Microsoft Edge WebView2 Runtime is still required on the test PC; the app shows an error if it cannot initialize the runtime.
 
 ## Test
 

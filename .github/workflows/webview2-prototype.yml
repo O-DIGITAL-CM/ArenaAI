@@ -34,16 +34,14 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true
           -o .\target\webview2-poc
 
-      - name: Include test instructions and create archive
+      - name: Include test instructions
         shell: pwsh
-        run: |
-          Copy-Item .\webview2-poc\README.md .\target\webview2-poc\README.md
-          Compress-Archive -Path .\target\webview2-poc\* -DestinationPath .\target\Arena-WebView2-Prototype.zip -CompressionLevel Optimal
+        run: Copy-Item .\webview2-poc\README.md .\target\webview2-poc\README.md
 
       - name: Upload prototype artifact
         uses: actions/upload-artifact@v7
         with:
           name: Arena-WebView2-Prototype
-          path: target/Arena-WebView2-Prototype.zip
+          path: target/webview2-poc/
           if-no-files-found: error
           retention-days: 30
