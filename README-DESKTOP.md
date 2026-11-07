@@ -206,6 +206,26 @@ Replace the `.ico` file if you want a different installer icon.
   **Log out** + retry: a stale restored session cookie may be poisoning the
   flow (the cookie file only tracks `Max-Age`, not server-side expiry).
 
+## Experimental WebView2 prototype
+
+A separate Windows proof of concept is available to test Microsoft Edge WebView2
+without changing the production JavaFX browser or its system-browser fallback.
+Run the [**WebView2 prototype** workflow](https://github.com/O-DIGITAL-CM/ArenaAI/actions/workflows/webview2-prototype.yml) from the Actions tab; download and extract
+the `Arena-WebView2-Prototype` artifact, then start
+`Arena.WebView2Prototype.exe`. It needs the Microsoft Edge WebView2 Runtime on
+the test PC. The prototype uses its own profile under
+`%LOCALAPPDATA%\Arena\WebView2Prototype` and requires a separate sign-in.
+
+It keeps WebView2's normal Edge/Chromium user agent, does not import browser
+cookies, and does not bypass or manipulate Cloudflare checks. Cloudflare may
+still challenge it; the artifact is an experiment, not a verified fix. It is
+not bundled in the Arena installer and does not replace the current app view.
+Its Windows Job Object applies a one-logical-core-equivalent hard CPU cap and a
+1 GiB aggregate job-memory cap to the host and its WebView2 child processes; the
+prototype will not start if Windows cannot enforce them. These limits are
+separate from Arena's JVM options. If the engine passes a real-world test,
+integration can be evaluated next.
+
 ## Good to know / limitations
 
 - The embedded browser is JavaFX `WebView` (WebKit-based), **not** full

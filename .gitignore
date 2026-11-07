@@ -1,4 +1,6 @@
 target/
+webview2-poc/bin/
+webview2-poc/obj/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

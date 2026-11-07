@@ -1,0 +1,49 @@
+name: WebView2 prototype
+
+on:
+  push:
+    branches:
+      - master
+      - 'arena/**'
+    paths:
+      - '.github/workflows/webview2-prototype.yml'
+      - 'webview2-poc/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-prototype:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained WebView2 prototype
+        shell: pwsh
+        run: >-
+          dotnet publish .\webview2-poc\Arena.WebView2Prototype.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o .\target\webview2-poc
+
+      - name: Include test instructions and create archive
+        shell: pwsh
+        run: |
+          Copy-Item .\webview2-poc\README.md .\target\webview2-poc\README.md
+          Compress-Archive -Path .\target\webview2-poc\* -DestinationPath .\target\Arena-WebView2-Prototype.zip -CompressionLevel Optimal
+
+      - name: Upload prototype artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Arena-WebView2-Prototype
+          path: target/Arena-WebView2-Prototype.zip
+          if-no-files-found: error
+          retention-days: 30
